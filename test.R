@@ -1,24 +1,15 @@
-### GGM knockoff filter with fixed hyperparameters (Algprithm 3 in the paper)
-
-# input: 'X': data matrix (n \times p)
-#        'q': nominal FDR level
-#        'offset': indicate FDR (offset=1) / mFDR (offset=0) control
-#        'Z_matrix_function': function used to construct Z-statistics (measure the importance of variable/knockoff to the response)
-#        '...': extra arguments of 'Z_matrix_function' besides 'Nodewise_Y_Xs_Xk_list' and 'num.cores'
-#        'knockoff_method': choose from ("equi" and "sdo"), method to construct knockoffs
-#        'rule': choose from ("AND" and "OR"), rule used to recover the estimated edge set from the estimated neighborhoods
-#        'a': choose from (1 and 0.01), parameter used in the optimization problem
-#        'W_matrix_BasedOnZ': choose from ("difference" and "max_sign"): method used to construct feature statsitics (i.e. W-statistics) based on Z-statistics
-#        'num.cores': number of cores used for the parallel, the default value is 1
-# output: 'E_est': estimated edge set
-
-##########################################################
-
+library(mvtnorm)     # generate multivariate Gaussian date
 library(knockoff)        # for nodewisely constructing knockoffs
-library(parallel)        # parallel when nodewisely construct knockoffs and Z-statistics
+library(parallel)  
+library(doParallel)
+source("OtherFuncs/Graphs.R")
+source("OtherFuncs/FdrPowerGraphFunc.R")
 
-##########################################################
-### Main function:
+source("GGMknockoffFilter/Nodewise_Y_Xs_Xk.R")
+source("GGMknockoffFilter/Z_max_lambda.R")
+source("GGMknockoffFilter/Z_coef.R")
+source("GGMknockoffFilter/E_est_givenW_func.R")
+#source("GGMknockoffFilter/GKF.R")
 GKF <- function(X, q, offset, Z_matrix_function, ..., knockoff_method, rule, a, W_matrix_BasedOnZ, num.cores=1){
   
   # Obtain Y, design matrix X, and X_knockoffs nodewisely
@@ -41,14 +32,10 @@ GKF <- function(X, q, offset, Z_matrix_function, ..., knockoff_method, rule, a, 
   }
   
   # compute threshold and return the estimated graph
-  E_est <- E_est_givenW_func(W_matrix, q, offset, rule, a)
+  #E_est <- E_est_givenW_func(W_matrix, q, offset, rule, a)
   
-  my_list <-list("W" = W_matrix, "T"=E_est)
-  return(my_list)
+  return(W_matrix)
 }
-
-
-
 
 cal_threshold <- function(W_matrix, q, offset, rule, a){
   
@@ -104,13 +91,46 @@ cal_threshold <- function(W_matrix, q, offset, rule, a){
 
 unsigned_threshold <- function(W_matrix, T_original,  q, offset, rule, a , i, j)
 {
-  dif<-0
   W_matrix[i,j] <- abs(W_matrix[i,j])
   T_unsign <- cal_threshold(W_matrix, q, offset, rule, a)
-  if (T_original!=T_unsign){
-    #print (T_unsign)
-    dif<-1
-  }
-  print (T_unsign)
-  return(dif)
+  if (T_original!=T_unsign){return (1)}
+  return(0)
 }
+
+
+#################################################
+n = 1000          # number of observations
+p = 100           # number of variables
+q = 0.2           # nominal FDR level
+
+### Band graph
+b <- -0.6
+k= 10
+c = 10
+add_minEigen <- 0.5
+
+Result <- Band_graph(p, k, b, c, add_minEigen)
+Omega <- Result[[1]]
+Sigma <- Result[[2]]
+
+mu = rep(0,p)
+registerDoParallel(16)
+### Generate data
+for(i in 1:10){
+  X <- rmvnorm(n, mu, Sigma)
+  
+  ### Estimate the edge set using GKF with fixed hyperparameter
+  W_est <- GKF(X, q, offset=1, Z_matrix_function=Z_max_lambda, alpha=1,
+               knockoff_method="equi", 
+               rule="AND", a=0.01,
+               W_matrix_BasedOnZ="max_sign", 
+               num.cores=16)
+  T <- cal_threshold(W_est, q, offset=1, rule="AND", a=0.01)
+  difference<-
+    foreach(i=1:p,.combine = 'cbind') %:%
+    foreach(j=1:p, .combine='c') %dopar%{
+      unsigned_threshold(W_est, T,  q, offset=1, rule="AND", a=0.01 , i, j)
+    }
+  print(sum(sum(difference)))
+}
+

@@ -67,7 +67,7 @@ E_est_givenW_func <- function(W_matrix, q, offset, rule, a){
     E_est <- t(E_temp)*E_temp
   }
   
-  return(E_est)
+  return(Finial_thre_vector)
 }
 
 ####################################################################################################################
