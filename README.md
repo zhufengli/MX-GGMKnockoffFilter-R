@@ -1,4 +1,7 @@
-# GGMKnockoffFilter-R
-Implementation of the GGM knockoff filter (with sample-splitting-recycling) to learn the structure of a Gaussian graphical model as described in the following paper:
+# MX-GGMKnockoffFilter-R
 
-J. Li and M.H. Maathuis: GGM knockoff filter: False Discovery Rate Control for Gaussian Graphical Models. arXiv preprint: https://arxiv.org/abs/1908.11611
+Implementation of model-X knockoff framework for Gaussian graphical model and some additional tests for the combinatorial optimization problem of threshold vector T. 
+
+This code accompanies my master thesis at ETH Zürich within the seminar of statistics. 
+
+Work adapted from: https://github.com/Jinzhou-Li/GGMKnockoffFilter-R
